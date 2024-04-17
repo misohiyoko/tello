@@ -73,18 +73,14 @@ class TelloControl:
             return
         img = self.get_pict()
 
+        
+
         # ここにimgの処理をかく
         kernel_size = 5
         self.height, self.width, _ = img.shape[:3]
         _, img_gray, _ = cv2.split(cv2.cvtColor(img, cv2.COLOR_BGR2HSV))
         img_gray_blur = cv2.GaussianBlur(img_gray, (kernel_size, kernel_size), 0)
-        img_blurred = cv2.GaussianBlur(img, (kernel_size, kernel_size), 0)
-        img_sobel_x = cv2.Sobel(img_blurred, cv2.CV_64F, 1, 0, ksize=3)
-        img_sobel_x = cv2.convertScaleAbs(img_sobel_x)
-        img_sobel_y = cv2.Sobel(img_blurred, cv2.CV_64F, 0, 1, ksize=3)
-        img_sobel_y = cv2.convertScaleAbs(img_sobel_y)
-        img_sobel_combined = cv2.addWeighted(img_sobel_x, 0.5, img_sobel_y, 0.5, 0)
-        img_sobel_combined_gray = cv2.cvtColor(img_sobel_combined, cv2.COLOR_BGR2GRAY)
+
         img_canny = cv2.Canny(img_gray, 100, 200, apertureSize=3, L2gradient=True)
         thr, img_bin = cv2.threshold(img_gray, 100, 255, cv2.THRESH_BINARY)
         img_bin = img_bin.astype(np.uint8)
@@ -98,10 +94,9 @@ class TelloControl:
                                        iterations=1)
         img_canny_inverted = cv2.bitwise_not(img_canny_dilated)
 
-        _, img_binarized = cv2.threshold(img_sobel_combined_gray, 20, 255, cv2.THRESH_BINARY_INV)
-        img_binarized = img_binarized.astype(np.uint8)
-        kernel = np.ones((5, 5), np.uint8)
-        img_binarized_morphed = cv2.morphologyEx(img_binarized, cv2.MORPH_OPEN, kernel)
+
+
+
 
         contours, hierarchy = cv2.findContours(img_bin, cv2.RETR_LIST, cv2.CHAIN_APPROX_SIMPLE)
         # cv2.drawContours(img, contours, -1, (0, 0, 255), 2)
@@ -110,12 +105,6 @@ class TelloControl:
 
 
 
-
-        if self.img_prev is not None:
-            kernel = np.ones((5, 5), np.uint8)
-            img_abs = np.abs(img_gray_blur.astype(np.float32) - self.img_prev.astype(np.float32)).astype(np.uint8)
-
-            #self.picture.put((img_gray_blur,))
         for cnt in contours:
             area = cv2.contourArea(cnt)
             length = cv2.arcLength(cnt, True)
