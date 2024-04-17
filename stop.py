@@ -9,7 +9,7 @@ import cv2
 
 # PCのwebcamで動かすときはFalseにする
 IS_TELLO = True
-TELLO_STOP = False
+TELLO_STOP = True
 TELLO_STOP = TELLO_STOP or not IS_TELLO
 SHOW_UN_PROCESSED_PICTURE = False
 USE_CONTROLLER = False
@@ -41,6 +41,7 @@ class TelloControl:
             else:
                 try:
                     self.tello.land()
+                    return
                 except:
                     pass
                 if USE_CONTROLLER:
@@ -166,28 +167,25 @@ class TelloControl:
             cornerUR = corners[index][0][1]
             cornerBR = corners[index][0][2]
             cornerBL = corners[index][0][3]
-            # Arucoの座標と幅
+
             x, y = ((cornerUL[0] + cornerBR[0]) / 2, (cornerUL[1] + cornerBR[1]) / 2)
             w = (cornerUL[0] - cornerBR[0]) / 2
             print((x,y,w))
             if not TELLO_STOP:
                 if abs(x - self.width / 2) > 20:
                     if (x - self.width / 2) < 0:
-                        #self.tello.send_rc_control(-25, -20, 0, 0)
-                        self.tello.move_left(20)
+                        self.tello.send_rc_control(-20, -10, 0, 0)
                     else:
-                        #self.tello.send_rc_control(25, -20, 0, 0)
-                        self.tello.move_right(20)
+                        self.tello.send_rc_control(20, -10, 0, 0)
                 else:
-                    if 140 > y - self.height / 2 > 110:
-                        if y < self.height / 2 + 110:
+                    if 130 > y - self.height / 2 > 100:
+                        if y < self.height / 2 + 100:
                             self.tello.send_rc_control(0, 0, 20, 0)
                         else:
                             self.tello.send_rc_control(0, 0, -20, 0)
                     else:
                         self.tello.send_rc_control(0, 20, 0, 0)
-                        self.tello.move_forward(20)
-                        if(w > 35):
+                        if(w > 30):
                             self.tello.move_forward(100)
 
 
@@ -222,10 +220,4 @@ class TelloControl:
 
 if __name__ == '__main__':
     tello_control = TelloControl()
-
-    while True:
-        img = tello_control.get_image()[0]
-        cv2.imshow('frame', img)
-
-        key = cv2.waitKey(int(1000 / 300))
 
