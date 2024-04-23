@@ -1,9 +1,11 @@
 import threading
 import time
 from queue import Queue
+
 import xboxcont
 
 from djitellopy import Tello, TelloException
+
 import numpy as np
 import cv2
 
@@ -15,7 +17,7 @@ SHOW_UN_PROCESSED_PICTURE = False
 USE_CONTROLLER = False
 USE_CONTROLLER = USE_CONTROLLER and TELLO_STOP
 
-isError = threading.Event()
+
 
 aruco = cv2.aruco
 dictionary = aruco.getPredefinedDictionary(aruco.DICT_7X7_50)
@@ -88,10 +90,8 @@ class TelloControl:
         img_gray_blur = cv2.GaussianBlur(img_gray, (kernel_size, kernel_size), 0)
 
         img_canny = cv2.Canny(img_gray, 100, 200, apertureSize=3, L2gradient=True)
-        thr, img_bin = cv2.threshold(img_gray, 100, 255, cv2.THRESH_BINARY)
-        img_bin = img_bin.astype(np.uint8)
-        kernel = np.ones((3, 3), np.uint8)
-        img_bin = cv2.morphologyEx(img_bin, cv2.MORPH_CLOSE, kernel)
+
+
 
 
         kernel_size = 3
@@ -104,8 +104,8 @@ class TelloControl:
 
 
 
-        contours, hierarchy = cv2.findContours(img_bin, cv2.RETR_LIST, cv2.CHAIN_APPROX_SIMPLE)
-        # cv2.drawContours(img, contours, -1, (0, 0, 255), 2)
+        contours, hierarchy = cv2.findContours(img_canny_inverted, cv2.RETR_LIST, cv2.CHAIN_APPROX_SIMPLE)
+
         circles = []
         img_disp = np.copy(img)
         print(ids)
@@ -118,7 +118,7 @@ class TelloControl:
             x_c, y_c, w_c, h_c = cv2.boundingRect(cnt)
             cv2.drawContours(img_disp, [cnt], -1, (0, 0, 255), 2)
             circularity = 4 * np.pi * area / length / length
-            if circularity > 0.75 and length > 150:
+            if circularity > 0.65 and length > 200:
                 cv2.putText(img_disp, f"{circularity:.3f} {length:.3f}", (x_c, y_c - 10), cv2.FONT_HERSHEY_PLAIN, 2,
                             (0, 255, 0), 1,
                             cv2.LINE_AA)
@@ -133,8 +133,10 @@ class TelloControl:
 
         self.picture.put((img_disp,))
         self.img_prev = img_gray_blur
-        t = threading.Timer(1 / 30, self.image_proc)
+        t2 = threading.Timer(0.1, self.stop)
+        t = threading.Timer(1 / 5, self.image_proc)
         t.start()
+        t2.start()
 
     def get_pict(self):
         if IS_TELLO:
@@ -156,6 +158,9 @@ class TelloControl:
     def get_image(self):
         return self.picture.get()
 
+
+    def stop(self):
+        self.tello.send_rc_control(0, 0, 0, 0)
     def flight_control(self, circles, corners, ids):
         if self.isError:
             return
@@ -168,16 +173,16 @@ class TelloControl:
             cornerBL = corners[index][0][3]
             # Arucoの座標と幅
             x, y = ((cornerUL[0] + cornerBR[0]) / 2, (cornerUL[1] + cornerBR[1]) / 2)
-            w = (cornerUL[0] - cornerBR[0]) / 2
+            w = (cornerUL[0] - cornerBR[0])
             print((x,y,w))
             if not TELLO_STOP:
                 if abs(x - self.width / 2) > 20:
                     if (x - self.width / 2) < 0:
-                        #self.tello.send_rc_control(-25, -20, 0, 0)
-                        self.tello.move_left(20)
+                        self.tello.send_rc_control(-25, 0, 0, 0)
+
                     else:
-                        #self.tello.send_rc_control(25, -20, 0, 0)
-                        self.tello.move_right(20)
+                        self.tello.send_rc_control(25, 0, 0, 0)
+
                 else:
                     if 140 > y - self.height / 2 > 110:
                         if y < self.height / 2 + 110:
@@ -187,8 +192,9 @@ class TelloControl:
                     else:
                         self.tello.send_rc_control(0, 20, 0, 0)
                         self.tello.move_forward(20)
-                        if(w > 35):
+                        if(w > 70):
                             self.tello.move_forward(100)
+            return
 
 
         if len(circles) > 0:
@@ -199,15 +205,15 @@ class TelloControl:
             if not TELLO_STOP:
                 if abs(x - self.width / 2) > 40:
                     if (x - self.width / 2) < 0:
-                        self.tello.send_rc_control(-20, 0, 0, 0)
+                        self.tello.move_left(20)
                     else:
-                        self.tello.send_rc_control(20, 0, 0, 0)
+                        self.tello.move_right(20)
                 else:
                     if abs(y - self.height / 2) > 40:
                         if y < self.height / 2:
-                            self.tello.send_rc_control(0, 0, 20, 0)
+                            self.tello.move_down(20)
                         else:
-                            self.tello.send_rc_control(0, 0, -20, 0)
+                            self.tello.move_up(20)
                     else:
                         self.tello.send_rc_control(0, 20, 0, 0)
                         #self.tello.move_forward(100)
