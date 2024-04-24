@@ -10,7 +10,7 @@ import numpy as np
 import cv2
 
 # PCのwebcamで動かすときはFalseにする
-IS_TELLO = True
+IS_TELLO = False
 TELLO_STOP = False
 TELLO_STOP = TELLO_STOP or not IS_TELLO
 SHOW_UN_PROCESSED_PICTURE = False
@@ -62,7 +62,7 @@ class TelloControl:
         self.t_flight = threading.Timer(1 / 30, self.take_image)
         self.t_flight.start()
 
-        self.target = 2
+        self.target = 3
 
     def tello_check_battery(self):
         if self.isError:
@@ -72,7 +72,8 @@ class TelloControl:
                 print("Battery is low at {}.".format(self.tello.get_battery()))
                 self.isError = True
                 self.tello.land()
-            t = threading.Timer(1 / 30, self.tello_check_battery)
+            print("Battery is {}.".format(self.tello.get_battery()))
+            t = threading.Timer(1, self.tello_check_battery)
             t.start()
 
     def image_proc(self):
@@ -86,10 +87,12 @@ class TelloControl:
         # ここにimgの処理をかく
         kernel_size = 5
         self.height, self.width, _ = img.shape[:3]
-        _, img_gray, _ = cv2.split(cv2.cvtColor(img, cv2.COLOR_BGR2HSV))
+        _, img_gray, img_v = cv2.split(cv2.cvtColor(img, cv2.COLOR_BGR2HSV))
         img_gray_blur = cv2.GaussianBlur(img_gray, (kernel_size, kernel_size), 0)
+        img_v_blur = cv2.GaussianBlur(img_v, (kernel_size, kernel_size), 0)
 
-        img_canny = cv2.Canny(img_gray, 100, 200, apertureSize=3, L2gradient=True)
+
+        img_canny = cv2.Canny(img_gray_blur, 100, 200, apertureSize=3, L2gradient=True)
 
 
 
@@ -130,8 +133,13 @@ class TelloControl:
         if IS_TELLO:
             # 移動の関数
             self.flight_control(circles, corners, ids)
+        im_list_2d = [[img_disp, cv2.cvtColor(img_gray_blur,cv2.COLOR_GRAY2RGB), cv2.cvtColor(img_v_blur,cv2.COLOR_GRAY2RGB)],
+                      [cv2.cvtColor(img_gray_bin,cv2.COLOR_GRAY2RGB), cv2.cvtColor(img_v_bin,cv2.COLOR_GRAY2RGB),
+                       cv2.cvtColor(img_and,cv2.COLOR_GRAY2RGB)]]
 
-        self.picture.put((img_disp,))
+
+        img_send = cv2.vconcat([cv2.hconcat(im_list_h) for im_list_h in im_list_2d])
+        self.picture.put((img_send,))
         self.img_prev = img_gray_blur
         t2 = threading.Timer(0.1, self.stop)
         t = threading.Timer(1 / 5, self.image_proc)
@@ -176,24 +184,30 @@ class TelloControl:
             w = (cornerUL[0] - cornerBR[0])
             print((x,y,w))
             if not TELLO_STOP:
+                left_right = 0
+                up_down = 0
+
                 if abs(x - self.width / 2) > 20:
                     if (x - self.width / 2) < 0:
-                        self.tello.send_rc_control(-25, 0, 0, 0)
+                        left_right = -25
+
 
                     else:
-                        self.tello.send_rc_control(25, 0, 0, 0)
+                        left_right = 25
 
-                else:
-                    if 140 > y - self.height / 2 > 110:
-                        if y < self.height / 2 + 110:
-                            self.tello.send_rc_control(0, 0, 20, 0)
-                        else:
-                            self.tello.send_rc_control(0, 0, -20, 0)
+                if 140 > y - self.height / 2 > 110:
+                    if y < self.height / 2 + 110:
+                        up_down = 25
                     else:
+                        up_down = -25
+
+                if left_right == 0 and up_down == 0:
                         self.tello.send_rc_control(0, 20, 0, 0)
                         self.tello.move_forward(20)
                         if(w > 70):
                             self.tello.move_forward(100)
+                else:
+                    self.tello.send_rc_control(left_right, 0, up_down, 0)
             return
 
 
@@ -208,14 +222,14 @@ class TelloControl:
                         self.tello.move_left(20)
                     else:
                         self.tello.move_right(20)
-                else:
-                    if abs(y - self.height / 2) > 40:
-                        if y < self.height / 2:
-                            self.tello.move_down(20)
-                        else:
-                            self.tello.move_up(20)
+
+                if abs(y - self.height / 2) > 40:
+                    if y > self.height / 2:
+                        self.tello.move_down(20)
                     else:
-                        self.tello.send_rc_control(0, 20, 0, 0)
+                        self.tello.move_up(20)
+                else:
+                    self.tello.move_forward(20)
                         #self.tello.move_forward(100)
 
             elif USE_CONTROLLER:
